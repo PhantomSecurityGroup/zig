@@ -3,6 +3,8 @@
 
 #include <llvm/IR/PassManager.h>
 
+namespace llvm { class PassBuilder; }
+
 namespace zig_mba {
 
 struct MBAPass : public llvm::PassInfoMixin<MBAPass> {
