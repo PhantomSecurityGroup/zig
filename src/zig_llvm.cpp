@@ -36,6 +36,7 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/OptimizationLevel.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/PassPlugin.h>
 #include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Object/Archive.h>
 #include <llvm/Object/ArchiveWriter.h>
@@ -299,6 +300,20 @@ ZIG_EXTERN_C bool ZigLLVMTargetMachineEmitToFile(LLVMTargetMachineRef targ_machi
     pass_builder.registerFunctionAnalyses(function_am);
     pass_builder.registerLoopAnalyses(loop_am);
     pass_builder.crossRegisterProxies(loop_am, function_am, cgscc_am, module_am);
+
+    // Load external LLVM pass plugin if ZIG_PASS_PLUGIN is set.
+    // This enables custom optimization passes (e.g. MBA obfuscation)
+    // to run as part of the normal Zig compilation pipeline.
+    if (const char *plugin_path = std::getenv("ZIG_PASS_PLUGIN")) {
+        auto plugin = llvm::PassPlugin::Load(plugin_path);
+        if (plugin) {
+            plugin->registerPassBuilderCallbacks(pass_builder);
+        } else {
+            llvm::consumeError(plugin.takeError());
+            *error_message = strdup("Failed to load ZIG_PASS_PLUGIN");
+            return true;
+        }
+    }
 
     pass_builder.registerPipelineStartEPCallback([&](ModulePassManager &module_pm, OptimizationLevel OL) {
         // Verify the input
