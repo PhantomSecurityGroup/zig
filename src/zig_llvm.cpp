@@ -36,7 +36,7 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/OptimizationLevel.h>
 #include <llvm/Passes/PassBuilder.h>
-#include <llvm/Passes/PassPlugin.h>
+#include "mba_pass.h"
 #include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Object/Archive.h>
 #include <llvm/Object/ArchiveWriter.h>
@@ -301,19 +301,16 @@ ZIG_EXTERN_C bool ZigLLVMTargetMachineEmitToFile(LLVMTargetMachineRef targ_machi
     pass_builder.registerLoopAnalyses(loop_am);
     pass_builder.crossRegisterProxies(loop_am, function_am, cgscc_am, module_am);
 
-    // Load external LLVM pass plugin if ZIG_PASS_PLUGIN is set.
-    // This enables custom optimization passes (e.g. MBA obfuscation)
-    // to run as part of the normal Zig compilation pipeline.
-    if (const char *plugin_path = std::getenv("ZIG_PASS_PLUGIN")) {
-        auto plugin = llvm::PassPlugin::Load(plugin_path);
-        if (plugin) {
-            plugin->registerPassBuilderCallbacks(pass_builder);
-        } else {
-            llvm::consumeError(plugin.takeError());
-            *error_message = strdup("Failed to load ZIG_PASS_PLUGIN");
-            return true;
-        }
+    // MBA obfuscation — set ZIG_MBA_SEED to enable.
+    if (const char *mba_env = std::getenv("ZIG_MBA_SEED")) {
+        uint64_t mba_seed = strtoull(mba_env, nullptr, 10);
+        unsigned mba_depth = 2;
+        unsigned mba_prob = 1;
+        if (const char *d = std::getenv("ZIG_MBA_DEPTH")) mba_depth = atoi(d);
+        if (const char *p = std::getenv("ZIG_MBA_PROB")) mba_prob = atoi(p);
+        zig_mba::registerMBAPass(pass_builder, mba_seed, mba_depth, mba_prob);
     }
+
 
     pass_builder.registerPipelineStartEPCallback([&](ModulePassManager &module_pm, OptimizationLevel OL) {
         // Verify the input
