@@ -403,7 +403,7 @@ ZIG_EXTERN_C bool ZigLLVMTargetMachineEmitToFile(LLVMTargetMachineRef targ_machi
         unsigned mba_prob = 1;
         if (const char *d = std::getenv("ZIG_MBA_DEPTH")) mba_depth = atoi(d);
         if (const char *p = std::getenv("ZIG_MBA_PROB")) mba_prob = atoi(p);
-        for (unsigned pass = 0; pass < mba_depth; pass++) {
+        for (unsigned pass = 0; pass < 1; pass++) {
             FunctionPassManager fpm;
             fpm.addPass(zig_mba::MBAPass(mba_seed + pass, mba_depth, mba_prob));
             ModulePassManager mba_pm;
