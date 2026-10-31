@@ -62,6 +62,29 @@ static IdentityFn add_ids[] = { add_0, add_1, add_2 };
 static IdentityFn xor_ids[] = { xor_0, xor_1, xor_2 };
 static IdentityFn or_ids[]  = { or_0,  or_1,  or_2  };
 static IdentityFn and_ids[] = { and_0, and_1, and_2  };
+// x - y
+static Value* sub_0(IRBuilder<>& B, Value* x, Value* y) {
+    // (x ^ y) - 2*(~x & y)
+    auto *xor_xy = B.CreateXor(x, y);
+    auto *not_x = B.CreateNot(x);
+    auto *and_nxy = B.CreateAnd(not_x, y);
+    return B.CreateSub(xor_xy, B.CreateShl(and_nxy, 1));
+}
+static Value* sub_1(IRBuilder<>& B, Value* x, Value* y) {
+    // 2*(x & ~y) - (x ^ y)
+    auto *not_y = B.CreateNot(y);
+    auto *and_xny = B.CreateAnd(x, not_y);
+    auto *xor_xy = B.CreateXor(x, y);
+    return B.CreateSub(B.CreateShl(and_xny, 1), xor_xy);
+}
+static Value* sub_2(IRBuilder<>& B, Value* x, Value* y) {
+    // (x & ~y) - (~x & y)
+    auto *not_x = B.CreateNot(x);
+    auto *not_y = B.CreateNot(y);
+    return B.CreateSub(B.CreateAnd(x, not_y), B.CreateAnd(not_x, y));
+}
+
+static IdentityFn sub_ids[] = { sub_0, sub_1, sub_2  };
 
 PreservedAnalyses MBAPass::run(Function &F, FunctionAnalysisManager &AM) {
     if (F.isDeclaration()) return PreservedAnalyses::all();
@@ -79,7 +102,8 @@ PreservedAnalyses MBAPass::run(Function &F, FunctionAnalysisManager &AM) {
             if (!BO) continue;
             unsigned op = BO->getOpcode();
             if (op != Instruction::Add && op != Instruction::Xor &&
-                op != Instruction::Or  && op != Instruction::And)
+                op != Instruction::Or  && op != Instruction::And &&
+                op != Instruction::Sub)
                 continue;
             if (BO->getType()->isVectorTy()) continue;
             s = nextSeed(s);
@@ -98,6 +122,7 @@ PreservedAnalyses MBAPass::run(Function &F, FunctionAnalysisManager &AM) {
             case Instruction::Xor: ids = xor_ids; count = 3; break;
             case Instruction::Or:  ids = or_ids;  count = 3; break;
             case Instruction::And: ids = and_ids; count = 3; break;
+            case Instruction::Sub: ids = sub_ids; count = 3; break;
             default: continue;
         }
         IRBuilder<> B(BO);
@@ -114,7 +139,8 @@ void registerMBAPass(PassBuilder &PB, uint64_t seed, unsigned depth, unsigned pr
     PB.registerOptimizerLastEPCallback(
         [seed, depth, prob](ModulePassManager &MPM, OptimizationLevel OL) {
             if (OL == OptimizationLevel::O0) return;
-            MPM.addPass(createModuleToFunctionPassAdaptor(MBAPass(seed, depth, prob)));
+            for (unsigned d = 0; d < depth; d++)
+                MPM.addPass(createModuleToFunctionPassAdaptor(MBAPass(seed + d, depth, prob)));
         });
 }
 
