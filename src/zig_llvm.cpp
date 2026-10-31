@@ -36,6 +36,7 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/OptimizationLevel.h>
 #include <llvm/Passes/PassBuilder.h>
+#include "mba_pass.h"
 #include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Object/Archive.h>
 #include <llvm/Object/ArchiveWriter.h>
@@ -299,6 +300,16 @@ ZIG_EXTERN_C bool ZigLLVMTargetMachineEmitToFile(LLVMTargetMachineRef targ_machi
     pass_builder.registerFunctionAnalyses(function_am);
     pass_builder.registerLoopAnalyses(loop_am);
     pass_builder.crossRegisterProxies(loop_am, function_am, cgscc_am, module_am);
+
+    // MBA obfuscation — set ZIG_MBA_SEED to enable.
+    if (const char *mba_env = std::getenv("ZIG_MBA_SEED")) {
+        uint64_t mba_seed = strtoull(mba_env, nullptr, 10);
+        unsigned mba_depth = 2;
+        unsigned mba_prob = 1;
+        if (const char *d = std::getenv("ZIG_MBA_DEPTH")) mba_depth = atoi(d);
+        if (const char *p = std::getenv("ZIG_MBA_PROB")) mba_prob = atoi(p);
+        zig_mba::registerMBAPass(pass_builder, mba_seed, mba_depth, mba_prob);
+    }
 
     pass_builder.registerPipelineStartEPCallback([&](ModulePassManager &module_pm, OptimizationLevel OL) {
         // Verify the input

@@ -179,6 +179,7 @@ set(ZIG_WASM2C_SOURCES
 set(ZIG_CPP_SOURCES
     # These are planned to stay even when we are self-hosted.
     src/zig_llvm.cpp
+    src/mba_pass.cpp
     src/zig_llvm-ar.cpp
     src/zig_clang.cpp
     src/zig_clang_driver.cpp
