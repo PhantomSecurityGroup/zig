@@ -397,18 +397,19 @@ ZIG_EXTERN_C bool ZigLLVMTargetMachineEmitToFile(LLVMTargetMachineRef targ_machi
     module_pm.run(llvm_module, module_am);
 
     // MBA obfuscation — runs AFTER all optimization, BEFORE codegen.
-    // This prevents LLVM's optimizer from undoing the transforms.
     if (const char *mba_env = std::getenv("ZIG_MBA_SEED")) {
         uint64_t mba_seed = strtoull(mba_env, nullptr, 10);
         unsigned mba_depth = 2;
         unsigned mba_prob = 1;
         if (const char *d = std::getenv("ZIG_MBA_DEPTH")) mba_depth = atoi(d);
         if (const char *p = std::getenv("ZIG_MBA_PROB")) mba_prob = atoi(p);
-        FunctionPassManager fpm;
-        fpm.addPass(zig_mba::MBAPass(mba_seed, mba_depth, mba_prob));
-        ModulePassManager mba_pm;
-        mba_pm.addPass(createModuleToFunctionPassAdaptor(std::move(fpm)));
-        mba_pm.run(llvm_module, module_am);
+        for (unsigned pass = 0; pass < mba_depth; pass++) {
+            FunctionPassManager fpm;
+            fpm.addPass(zig_mba::MBAPass(mba_seed + pass, mba_depth, mba_prob));
+            ModulePassManager mba_pm;
+            mba_pm.addPass(createModuleToFunctionPassAdaptor(std::move(fpm)));
+            mba_pm.run(llvm_module, module_am);
+        }
     }
 
     // Code generation phase
